@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "system_gd32e23x.h": "c",
+        "gd32e23x.h": "c",
+        "core_cm23.h": "c",
+        "systick.h": "c",
+        "gd32e23x_misc.h": "c",
+        "xmodem.h": "c"
+    },
+    "files.encoding": "gbk",
+}
