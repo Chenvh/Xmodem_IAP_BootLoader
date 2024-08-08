@@ -16,7 +16,10 @@
 #include "gd32e23x.h"
 #include "systick.h"
 #include <stdio.h>
-
+#include "stdlib.h"
+#include "string.h"
+#include "bsp_dma.h"
+#include "bsp_usart.h"
 
 #define FLASH_JUMP_ADDR							(0x08003000)
 typedef  void (*pFunction)(void);
@@ -78,8 +81,15 @@ int main(void)
 	/* 
 		初始化程序省略.....  
 	*/
-    //systick_config();
+    systick_config();
+	  usart_gpio_config(115200U); 	// 串口0初始化
 
+#if USB_USART_DMA // 使用DMA
+    printf("DMA receive\r\n");
+    dma_config(); // DMA配置
+#else             // 使用中断
+    printf("Interrupt receive\r\n");
+#endif
     /* enable the LED1 GPIO clock */
     rcu_periph_clock_enable(RCU_GPIOC);
     /* configure LED1 GPIO port */ 
@@ -88,14 +98,24 @@ int main(void)
     /* reset LED1 GPIO pin */
     gpio_bit_reset(GPIOC,GPIO_PIN_13);	
 	
-	if(((FLASH_JUMP_ADDR+4)&0xFF000000)==0x08000000) //Judge if start at 0X08XXXXXX.
-	{
-		jump_to_app(FLASH_JUMP_ADDR); // Jump to  APP
-	}
+	// if(((FLASH_JUMP_ADDR+4)&0xFF000000)==0x08000000) //Judge if start at 0X08XXXXXX.
+	// {
+	// 	jump_to_app(FLASH_JUMP_ADDR); // Jump to  APP
+	// }
 	
 	while(1)
 	{
-	
+    
+        /* 等待数据传输完成 */
+        if (g_recv_complete_flag) // 数据接收完成
+        {
+            g_recv_complete_flag = 0;                   // 等待下次接收
+            printf("g_recv_length:%d ", g_recv_length); // 打印接收的数据长度
+            printf("g_recv_buff:%s\r\n", g_recv_buff);  // 打印接收的数据
+            memset(g_recv_buff, 0, g_recv_length);      // 清空数组
+            g_recv_length = 0;                          // 清空长度
+        }
+		
 	}
 }
 

@@ -15,7 +15,7 @@
   ******************************************************************************/
 #include "bsp_usart.h"
 #include "stdio.h"
-
+#include "./bsp_dma.h"
 
 uint8_t 	g_recv_buff[USART_RECEIVE_LENGTH];   // 接收缓冲区
 uint16_t 	g_recv_length = 0;									 // 接收数据长度
@@ -62,11 +62,14 @@ void usart_gpio_config(uint32_t band_rate)
 	usart_transmit_config(BSP_USART,USART_TRANSMIT_ENABLE);  // 使能串口发送
 	usart_receive_config(BSP_USART,USART_RECEIVE_ENABLE);    // 使能串口接收
 	
-	/* 中断配置 */
-	nvic_irq_enable(BSP_USART_IRQ, 2); 									 // 配置中断优先级
-	usart_interrupt_enable(BSP_USART,USART_INT_RBNE);				 // 读数据缓冲区非空中断和溢出错误中断
-	usart_interrupt_enable(BSP_USART,USART_INT_IDLE);				 // 空闲检测中断
+    /* 中断配置 */
+    nvic_irq_enable(BSP_USART_IRQ, 2);              // 配置中断优先级
+#if !USB_USART_DMA                                     // 使用中断
+    usart_interrupt_enable(BSP_USART, USART_INT_RBNE); // 读数据缓冲区非空中断和溢出错误中断
+#endif
+    usart_interrupt_enable(BSP_USART, USART_INT_IDLE); // 空闲检测中断
 }
+
 
 /************************************************
 函数名称 ： usart_send_data
@@ -120,18 +123,28 @@ int fputc(int ch, FILE *f)
 *************************************************/
 void BSP_USART_IRQHandler(void)
 {
-	if(usart_interrupt_flag_get(BSP_USART,USART_INT_FLAG_RBNE) == SET)   // 接收缓冲区不为空
-	{
-		g_recv_buff[g_recv_length++] = usart_data_receive(BSP_USART);      // 把接收到的数据放到缓冲区中
-	}
-	
-	if(usart_interrupt_flag_get(BSP_USART,USART_INT_FLAG_IDLE) == SET)   // 检测到帧中断
-	{
-		usart_data_receive(BSP_USART);                                     // 必须要读，读出来的值不能要
-		g_recv_buff[g_recv_length] = '\0';																 // 数据接收完毕，数组结束标志
-		g_recv_complete_flag = 1;                                          // 接收完成
-		usart_interrupt_flag_clear(USART0, USART_INT_FLAG_IDLE);		
-	}
-	
+#if !USB_USART_DMA                                                       // 使用中断
+    if (usart_interrupt_flag_get(BSP_USART, USART_INT_FLAG_RBNE) == SET) // 接收缓冲区不为空
+    {
+        g_recv_buff[g_recv_length++] = usart_data_receive(BSP_USART); // 把接收到的数据放到缓冲区中
+    }
+#endif
+
+    if (usart_interrupt_flag_get(BSP_USART, USART_INT_FLAG_IDLE) == SET) // 检测到帧中断
+    {
+		usart_interrupt_flag_clear(USART0, USART_INT_FLAG_IDLE);
+        usart_data_receive(BSP_USART); // 必须要读，读出来的值不能要
+
+#if USB_USART_DMA // 使用DMA
+        /* 处理DMA接收到的数据 */
+        g_recv_length = USART_RECEIVE_LENGTH - dma_transfer_number_get(BSP_DMA_CH); // 计算实际接收的数据长度
+        /* 重新设置DMA传输 */
+        dma_channel_disable(BSP_DMA_CH); // 失能DMA通道
+        dma_config();                             // 重新配置DMA进行传输
+#endif
+
+        g_recv_buff[g_recv_length] = '\0'; // 数据接收完毕，数组结束标志
+        g_recv_complete_flag = 1;          // 接收完成
+    }
 }
 

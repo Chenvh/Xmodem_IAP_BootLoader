@@ -1,9 +1,9 @@
 #include "xmodem.h"
 
 // 当前数据包号
-extern unsigned int CurrentPackNum = 0;
+unsigned int CurrentPackNum = 0;
 
-int CalCRC(char *ptr, int count)
+int CalCRC(unsigned char *ptr, int count)
 {
 	int crc;
 	char i;
@@ -27,8 +27,13 @@ int CalCRC(char *ptr, int count)
 
 unsigned char xmodemReceive(unsigned char checkType)
 {
+	
+	return 0;
 
 
+}
+void SendXmodemCtrlChar(unsigned char Ctrltype)
+{
 
 }
 
@@ -38,15 +43,43 @@ unsigned char xmodemReceive(unsigned char checkType)
  * @param   packet      接收到的数据包
  * @param   pLen        数据包长度
  * @param   checkType   校验类型：NAK 校验 或 CHECK_CRC CRC校验
- * @return  -1为帧头检测失败，-2帧号检测失败，-3 CRC校验失败， 0为校验成功
+ * @return  -1为帧头检测失败，-2帧号检测失败，-3 CRC校验失败， 0为校验成功, 1接收结束
 */
 unsigned char XmodemPacketCheck(unsigned char *packet, unsigned int pLen, unsigned checkType)
 {
+	int packetCRC = 0;
+	int CalpacketCRC = 0;
+	unsigned short packcheckStat = 0;
+
+	if (EOT == packet[0]) packcheckStat = 1;
+
     // 不是帧头
-    if ( SOH != packet[0]) return -1;
-    if ( (packet[1] != CurrentPackNum + 1) && (packet[1] == ~(packet[2]))) {
-        return -2;
+    if ( SOH != packet[0]) packcheckStat = -1;
+    if ( (packet[1] != CurrentPackNum) && (packet[1] == ~(packet[2]))) {
+        packcheckStat = -2;
     }
+
+	// 获取CRC值 
+	if (CHECK_CRC == checkType) {
+		packetCRC = (packet[PACKETDATALEN-2] << 8) + packet[PACKETDATALEN-1];
+
+		CalpacketCRC = CalCRC(&packet[4], PACKETDATALEN-2);
+
+		if (packetCRC != CalpacketCRC) {
+			packcheckStat = -3;
+		} else {
+			CurrentPackNum++;
+			packcheckStat = 0;
+		}
+	}
+
+	if (0 < packcheckStat) {
+		SendXmodemCtrlChar((unsigned char )NAK);
+	} else {
+		SendXmodemCtrlChar((unsigned char )ACK);
+	}
+
+	return packcheckStat;
 }
 
 

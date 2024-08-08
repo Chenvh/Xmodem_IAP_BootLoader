@@ -102,9 +102,12 @@ Xmodem-CRC16 传输流程
 #define CHECK_CRC 'C'
 #define CHECK_NUM NAK
 
+#define PACKETDATALEN 128               // 数据长度 128
+#define PACKETLEN (PACKETDATALEN + 5)   // 数据包长度 128 + 5 = 133
+
 // 当前数据包号
 extern unsigned int CurrentPackNum;
-
+// extern 
 /**
  * @brief   Xmodem数据包校验
  * @param   packet      接收到的数据包
@@ -122,7 +125,7 @@ void SendXmodemCtrlChar(unsigned char Ctrltype);
 unsigned char SaveXmodemData(void);
 
 // CRC计算
-int CalCRC(char *ptr, int count);
+int CalCRC(unsigned char *ptr, int count);
 
 #endif /* __XMODEM_H_ */
 
